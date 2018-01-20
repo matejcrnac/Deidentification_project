@@ -50,52 +50,122 @@
 #       pip install scikit-image
 #   Or downloaded from http://scikit-image.org/download.html.
 
-
-import sys
-import os
 import dlib
-import glob
-from skimage import io
+import cv2
 
-if len(sys.argv) != 3:
-    print(
-        "Give the path to the trained shape predictor model as the first "
-        "argument and then the directory containing the facial images.\n"
-        "For example, if you are in the python_examples folder then "
-        "execute this program by running:\n"
-        "    ./face_landmark_detection.py shape_predictor_68_face_landmarks.dat ../examples/faces\n"
-        "You can download a trained facial shape predictor from:\n"
-        "    http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2")
-    exit()
+class FacialLandmarkDetector:
 
-predictor_path = sys.argv[1]
-faces_folder_path = sys.argv[2]
+    def __init__(self, image_path):
+        self.image_path = image_path
+        self.img = cv2.imread(image_name, cv2.IMREAD_COLOR)
+        self.dets = None
+        self.shape = None
+    #Detects frontal face on image
+    #Returns dlib.rectangle object
+    #agrument draw decides if rectangle is drawn on image
+    def detect_frontal_face(self, draw=False):
+        detector = dlib.get_frontal_face_detector()
+        self.dets = detector(self.img, 1)
+        for k, d in enumerate(self.dets):
+            print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
+                k, d.left(), d.top(), d.right(), d.bottom()))
+            if draw==True:
+                cv2.rectangle(self.img,(d.left(),d.top()),(d.right(),d.bottom()),(0,255,0),2)
+        return d
+    #shows image inside a windows
+    def showImage(self):
+        cv2.imshow('image',self.img)
+        cv2.waitKey(0)
+    #detects facial landmarks based
+    #returns list of tuples of (x,y) which represent 68 landmark points
+    def detectFacialLandmarks(self, draw):
+        #shape_predictor_68_face_landmarks.dat can be downloaded from
+        # http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
+        self.parts = []
+        predictor_path = "shape_predictor_68_face_landmarks.dat"
+        predictor = dlib.shape_predictor(predictor_path)
+        d = self.detect_frontal_face()
+        self.shape = predictor(self.img, d)
 
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(predictor_path)
-win = dlib.image_window()
+        for i in range(self.shape.num_parts):
+            self.parts.append((self.shape.part(i).x,self.shape.part(i).y))
+            if draw==True:
+                cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        return self.parts
+    def getFacialLandmarksOfFacePart(self, faceParts, draw=False):
+        if self.shape == None:
+            self.parts = self.detectFacialLandmarks(False)
+        foundParts = []
+        if "Mouth" in faceParts:
+            for i in range(48, 68):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "RightEyebrow" in faceParts:
+            for i in range(17, 22):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "LeftEyebrow" in faceParts:
+            for i in range(22, 27):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "RightEye" in faceParts:
+            for i in range(36, 42):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "LeftEye" in faceParts:
+            for i in range(42, 48):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "Nose" in faceParts:
+            for i in range(27, 36):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        if "Jaw" in faceParts:
+            for i in range(0, 17):
+                foundParts.append(self.parts[i])
+                if draw==True:
+                    cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
+        return foundParts
+    def extractFacePart(self, facePart, destinationFolder):
+        if facePart == "EyeRegion":
+            parts = self.getFacialLandmarksOfFacePart(["RightEye", "LeftEye", "RightEyebrow", "LeftEyebrow"])
+            top, left, bottom, right = maxRectangle(parts)
+            region = self.img[top:bottom+10, left:right]
+        return region
 
-for f in glob.glob(os.path.join(faces_folder_path, "*.ppm")):
-    print("Processing file: {}".format(f))
-    img = io.imread(f)
+def maxRectangle(parts):
+    maxTop = 1111111111
+    maxLeft = 111111111
+    maxBottom = -100
+    maxRight = -100
+    for part in parts:
+        if part[0] < maxLeft:
+            maxLeft = part[0]
+        if part[0] > maxRight:
+            maxRight = part[0]
+        if part[1] < maxTop:
+            maxTop = part[1]
+        if part[1] > maxBottom:
+            maxBottom = part[1]
+    return maxTop, maxLeft, maxBottom, maxRight
 
-    win.clear_overlay()
-    win.set_image(img)
-
-    # Ask the detector to find the bounding boxes of each face. The 1 in the
-    # second argument indicates that we should upsample the image 1 time. This
-    # will make everything bigger and allow us to detect more faces.
-    dets = detector(img, 1)
-    print("Number of faces detected: {}".format(len(dets)))
-    for k, d in enumerate(dets):
-        print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
-            k, d.left(), d.top(), d.right(), d.bottom()))
-        # Get the landmarks/parts for the face in box d.
-        shape = predictor(img, d)
-        for i in range(68):
-            print("Part" + str(i) + ": {}".format(shape.part(i)))
-        # Draw the face landmarks on the screen.
-        win.add_overlay(shape)
-
-    win.add_overlay(dets)
-    dlib.hit_enter_to_continue()
+if __name__ == "__main__":
+    image_name = "/home/matej/FER_current/Projekt/Project_Deidentification_Kazemi/baza_XMVTS2/000/000_1_1.ppm"
+    detector = FacialLandmarkDetector(image_name)
+    #detector.detect_frontal_face(True)
+    #detector.showImage()
+    #parts = detector.detectFacialLandmarks(True)
+    #detector.showImage()
+    #print(parts)
+    #foundParts = detector.getFacialLandmarksOfFacePart(["Nose", "Mouth"], True)
+    #detector.showImage()
+    #print(foundParts)
+    ROI = detector.extractFacePart("EyeRegion", "bezz")
+    cv2.imshow('image',ROI)
+    cv2.waitKey(0)
