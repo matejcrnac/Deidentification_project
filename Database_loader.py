@@ -6,11 +6,13 @@ class DatabaseLoaderXMVTS2:
     def __init__(self, database_folder):
         self.database_folder = database_folder
 
-    def loadDatabase(self, extension):
+    def loadDatabase(self, extension, imageNum = ""):
         images_paths = []
+        if imageNum != "":
+            imageNum = "_"+imageNum
         for root, dirs, files in os.walk(self.database_folder):
             for file in files:
-                if file.endswith(extension):
+                if file.endswith(extension) and imageNum + "_1" in file :
                     fName = os.path.join(root, file)
                     images_paths.append(fName)
 
@@ -28,17 +30,21 @@ class DatabaseLoaderXMVTS2:
         print("Extracting finished")
 
     def imagePathFinder(self, imageName, imageNumber):
+        if imageNumber != "":
+            imageNumber = "_"+imageNumber
         for root, dirs, files in os.walk(self.database_folder):
             for file in files:
-                if imageName in file and "_" + imageNumber + "_1" in file:
+                if imageName in file and imageNumber + "_1" in file:
                     fName = os.path.join(root, file)
                     return fName
     def getImagesPath(self, imageNameList, imageNumber):
         images_paths = []
+        if imageNumber != "":
+            imageNumber = "_"+imageNumber
         for root, dirs, files in os.walk(self.database_folder):
             for file in files:
                 for imageName in imageNameList:
-                    if imageName in file and "_" + imageNumber + "_1" in file:
+                    if imageName in file and imageNumber + "_1" in file:
                         fName = os.path.join(root, file)
                         images_paths.append(fName)
                         break
