@@ -25,6 +25,8 @@ class FacialLandmarkDetector:
         cv2.putText(self.img,self.image_path , (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
         cv2.imshow('image',self.img)
         cv2.waitKey(0)
+    def getImage(self):
+        return self.img
     def saveImage(self, destination):
         imgName = self.image_path.split("/")[-1]
         cv2.imwrite(destination+"/"+imgName,self.img)
@@ -38,7 +40,7 @@ class FacialLandmarkDetector:
 
     #detects facial landmarks based
     #returns list of tuples of (x,y) which represent 68 landmark points
-    def detectFacialLandmarks(self, draw):
+    def detectFacialLandmarks(self, draw, normalize=True):
         #shape_predictor_68_face_landmarks.dat can be downloaded from
         # http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
         self.parts = []
@@ -51,11 +53,12 @@ class FacialLandmarkDetector:
             self.parts.append((self.shape.part(i).x,self.shape.part(i).y))
             if draw==True:
                 cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
-        self.parts = self.normalize(self.parts)
+        if normalize==True:
+            self.parts = self.normalize(self.parts)
         return self.parts
     def getFacialLandmarksOfFacePart(self, faceParts, draw=False):
         if self.shape == None:
-            self.parts = self.detectFacialLandmarks(False)
+            self.parts = self.detectFacialLandmarks(False, normalize=False)
         foundParts = []
         if "Mouth" in faceParts:
             for i in range(48, 68):
@@ -94,11 +97,48 @@ class FacialLandmarkDetector:
                     cv2.circle(self.img,(self.shape.part(i).x,self.shape.part(i).y), 2, (0,0,255), -1)
         return foundParts
     def extractFacePart(self, facePart):
+        region = None
         if facePart == "EyeRegion":
             parts = self.getFacialLandmarksOfFacePart(["RightEye", "LeftEye", "RightEyebrow", "LeftEyebrow"])
-            top, left, bottom, right = maxRectangle(parts)
-            region = self.img[top:bottom+10, left:right]
+            self.top, self.left, self.bottom, self.right = maxRectangle(parts)
+            self.bottom += 10
+            region = self.img[self.top:self.bottom, self.left:self.right]
         return region
+    def replaceImagePart(self, newROI):
+        self.img[self.top:self.bottom, self.left:self.right] = newROI
+        self.showImage()
+        #bottom
+        newTop = self.bottom - 10
+        newBottom = self.bottom + 20
+        regionBottom = self.img[newTop:newBottom, self.left:self.right]
+        skinColor = int(sum(numpy.sum(regionBottom[-1, :],axis=0) / len(regionBottom[-1, :]))/3)
+        blur = cv2.bilateralFilter(regionBottom,15,skinColor-5,skinColor+5)
+        self.img[newTop:newBottom, self.left:self.right] = blur
+
+        #top
+        newTop = self.top - 10
+        newBottom = self.top + 10
+        regionTop = self.img[newTop:newBottom, self.left:self.right]
+        skinColor = int(sum(numpy.sum(regionTop[-1, :],axis=0) / len(regionTop[-1, :]))/3)
+        blur = cv2.bilateralFilter(regionTop, 15,skinColor-5,skinColor+5)
+        self.img[newTop:newBottom, self.left:self.right] = blur
+
+        #left
+        newLeft = self.left - 10
+        newRight = self.left + 10
+        regionTop = self.img[self.top:self.bottom, newLeft:newRight]
+        skinColor = int(sum(numpy.sum(regionTop[-1, :],axis=0) / len(regionTop[-1, :]))/3)
+        blur = cv2.bilateralFilter(regionTop,15,skinColor-5,skinColor+5)
+        self.img[self.top:self.bottom, newLeft:newRight] = blur
+
+        #right
+        newLeft = self.right - 10
+        newRight = self.right + 10
+        regionTop = self.img[self.top:self.bottom, newLeft:newRight]
+        skinColor = int(sum(numpy.sum(regionTop[-1, :],axis=0) / len(regionTop[-1, :]))/3)
+        blur = cv2.bilateralFilter(regionTop,15,skinColor-5,skinColor+5)
+        self.img[self.top:self.bottom, newLeft:newRight] = blur
+
 
 def maxRectangle(parts):
     maxTop = 1111111111
